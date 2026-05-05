@@ -2,5 +2,5 @@ pathway
 bokeh
 panel
 pandas
-numpy
+numpy<2.0
 scikit-learn
