@@ -1,23 +1,23 @@
-# ENVIRONMENT SETUP (CRITICAL)
-# CELL 1
-import sys
-import subprocess
+# # ENVIRONMENT SETUP (CRITICAL)
+# # CELL 1
+# import sys
+# import subprocess
 
-print("Installing compatible libraries...")
+# print("Installing compatible libraries...")
 
-subprocess.check_call([
-    sys.executable, "-m", "pip", "install",
-    "numpy<2.0",
-    "pathway",
-    "pandas",
-    "bokeh",
-    "panel",
-    "scikit-learn",
-    "--upgrade"
-])
+# subprocess.check_call([
+#     sys.executable, "-m", "pip", "install",
+#     "numpy<2.0",
+#     "pathway",
+#     "pandas",
+#     "bokeh",
+#     "panel",
+#     "scikit-learn",
+#     "--upgrade"
+# ])
 
-print("Installation complete.")
-print("⚠️ PLEASE RESTART THE RUNTIME/KERNEL NOW.")
+# print("Installation complete.")
+# print("⚠️ PLEASE RESTART THE RUNTIME/KERNEL NOW.")
 
 # CELL 2
 import numpy as np
@@ -39,9 +39,9 @@ assert np.__version__.startswith("1."), "NumPy 2.x detected — environment is b
 
 
 # CELL 3
-from models.model1_baseline import baseline_price
-from models.model2_demand import demand_based_price
-from models.model3_competitive import competitive_price
+from models.model1_1_baseline import baseline_price
+from models.model1_2_demand import demand_based_price
+from models.model_3_competitive import competitive_price
 
 from utils.helpers import preprocess_data, create_lot_info
 from utils.geospatial import calculate_distances, get_nearby_lots
