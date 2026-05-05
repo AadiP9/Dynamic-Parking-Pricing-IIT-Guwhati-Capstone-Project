@@ -1,7 +1,5 @@
-# =====================================================
 # ENVIRONMENT SETUP (CRITICAL)
 # CELL 1
-# =====================================================
 import sys
 import subprocess
 
@@ -20,7 +18,6 @@ subprocess.check_call([
 
 print("Installation complete.")
 print("⚠️ PLEASE RESTART THE RUNTIME/KERNEL NOW.")
-
 
 # CELL 2
 import numpy as np
@@ -53,36 +50,47 @@ from config import *
 
 
 # CELL 4
-os.makedirs("data", exist_ok=True)
-data_path = "data/dataset.csv"
+def preprocess_data(df):
+    """
+    Preprocess raw data for simulation
 
-if not os.path.exists(data_path):
-    print("Dataset not found. Creating dummy data...")
-    dates = pd.date_range("2024-01-01", periods=200, freq="5min")
+    Args:
+        df (pd.DataFrame) : Raw input data
 
-    df_dummy = pd.DataFrame({
-        "LastUpdatedDate": dates.strftime("%d-%m-%Y"),
-        "LastUpdatedTime": dates.strftime("%H:%M:%S"),
-        "Occupancy": np.random.randint(10, 90, len(dates)),
-        "Capacity": 100,
-        "QueueLength": np.random.randint(0, 15, len(dates)),
-        "Traffic": np.random.rand(len(dates)),
-        "IsSpecialDay": False,
-        "VehicleType": "car",
-        "Latitude": 12.9716,
-        "Longitude": 77.5946,
-        "ParkingLotID": "P1"
-    })
+    Returns:
+        pd.DataFrame : Preprocessed data
+    """
 
-    df_dummy.to_csv(data_path, index=False)
+    # Combine date and time
+    df['Timestamp'] = pd.to_datetime(
+        df['LastUpdatedDate'] + ' ' + df['LastUpdatedTime'],
+        format="%d-%m-%Y %H:%M:%S"  # ← Fixed: changed %H-%M-%S to %H:%M:%S
+    )
 
-df = preprocess_data(pd.read_csv(data_path))
-lot_info = create_lot_info(df)
+    column_mapping = {
+        'Occupancy': 'Occupancy',
+        'Capacity': 'Capacity',
+        'QueueLength': 'QueueLength',
+        'Traffic': 'Traffic',
+        'IsSpecialDay': 'IsSpecialDay',
+        'VehicleType': 'VehicleType',
+        'Latitude': 'Latitude',
+        'Longitude': 'Longitude',
+        'ParkingLotID': 'ParkingLotID'
+    }
+    df = df.rename(columns=column_mapping)
 
-unique_lots = df[["ParkingLotID", "Latitude", "Longitude"]].drop_duplicates()
-distances, indices = calculate_distances(unique_lots)
+    # Fill missing values
+    df['QueueLength'] = df['QueueLength'].fillna(0)  # ← Fixed: changed fillna[0] to fillna(0)
+    df['Traffic'] = df['Traffic'].fillna(1.0)
+    df['IsSpecialDay'] = df['IsSpecialDay'].fillna(0).astype(bool)
+    df['VehicleType'] = df['VehicleType'].fillna('car')
 
-df.to_csv("data/parking_stream.csv", index=False)
+    # Add vehicle weight
+    df['VehicleWeight'] = df['VehicleType'].map(VEHICLE_WEIGHTS).fillna(1.0)
+
+    # Sort by timestamp
+    return df.sort_values('Timestamp').reset_index(drop=True)
 
 
 # CELL 5
@@ -111,10 +119,7 @@ data = data.with_columns(
 )
 
 
-# =====================================================
 # CELL 6 — STATEFUL PRICING LOGIC (PATHWAY-CORRECT)
-# =====================================================
-
 # ---- 1. STATE SCHEMA (NO DEFAULTS) ----
 class PricingState(pw.Schema):
     lot_id: str
@@ -173,8 +178,15 @@ def update_prices(state, row):
 
 
 # CELL 7
-pn.extension()
+import panel as pn
+import bokeh.plotting
+from bokeh.models import ColumnDataSource, HoverTool
+import pandas as pd
+import random
 
+pn.extension('ipywidgets')
+
+# 1. Setup the empty data source
 source = ColumnDataSource({
     "t": [],
     "price": [],
@@ -183,6 +195,7 @@ source = ColumnDataSource({
     "capacity": [],
 })
 
+# 2. Setup the plot
 plot = bokeh.plotting.figure(
     height=400,
     width=800,
@@ -190,19 +203,39 @@ plot = bokeh.plotting.figure(
     title="Real-Time Parking Price"
 )
 
+# Draw the line
 plot.line("t", "price", source=source, line_width=2)
 
+# Add hover tools
 plot.add_tools(HoverTool(
     tooltips=[
         ("Lot", "@lot"),
-        ("Price", "@price"),
+        ("Price", "$@price"),
         ("Occupancy", "@occupancy/@capacity")
     ]
 ))
 
-dashboard = pn.Column(plot)
-dashboard
+# 3. Create an update function to stream new data
+def update_data():
+    # In your real project, this data will come from your simulation loop or dataset.csv
+    new_data = {
+        "t": [pd.Timestamp.now()],
+        "price": [random.randint(10, 50)], # Random price between $10 and $50
+        "lot": ["Lot A"],
+        "occupancy": [random.randint(50, 100)],
+        "capacity": [100]
+    }
+    
+    # .stream() pushes the new data to the chart. 
+    # rollover=100 ensures the chart only keeps the latest 100 points so it doesn't crash.
+    source.stream(new_data, rollover=100)
 
+# 4. Trigger the update function every 1000 milliseconds (1 second)
+callback = pn.state.add_periodic_callback(update_data, period=1000)
+
+# 5. Display the dashboard
+dashboard = pn.Column(plot)
+dashboard.show()
 
 # CELL 8
 def run_pipeline():
