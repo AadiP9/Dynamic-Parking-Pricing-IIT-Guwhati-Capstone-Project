@@ -4,3 +4,4 @@ panel
 pandas
 numpy<2.0
 scikit-learn
+ipykernel
