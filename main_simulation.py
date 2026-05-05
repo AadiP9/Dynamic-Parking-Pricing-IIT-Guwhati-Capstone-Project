@@ -184,6 +184,9 @@ from bokeh.models import ColumnDataSource, HoverTool
 import pandas as pd
 import random
 
+import os
+import panel as pn
+
 pn.extension('ipywidgets')
 
 # 1. Setup the empty data source
@@ -235,10 +238,25 @@ callback = pn.state.add_periodic_callback(update_data, period=1000)
 
 # 5. Display the dashboard
 dashboard = pn.Column(plot)
-dashboard.show()
+# Make sure dashboard.show() is DELETED from here!
 
-# CELL 8
+# 6. Start the Pathway Data Stream (Moved BEFORE the server)
 def run_pipeline():
     pw.run(monitoring_level=pw.MonitoringLevel.NONE)
 
+# Start the simulation in the background
 threading.Thread(target=run_pipeline, daemon=True).start()
+
+# 7. Launch the Web Server (This MUST be the very last thing in the file)
+if __name__ == "__main__":
+    # Fetch the port Render assigns, or default to 8000 for local testing
+    port = int(os.environ.get("PORT", 8000))
+    
+    # Serve the application on 0.0.0.0
+    pn.serve(
+        dashboard, 
+        port=port,
+        address="0.0.0.0",
+        show=False, # Set to False so it doesn't try to open a browser window on the Render server
+        allow_websocket_origin=["*"] # Crucial: Allows Render to route traffic to the dashboard
+    )
