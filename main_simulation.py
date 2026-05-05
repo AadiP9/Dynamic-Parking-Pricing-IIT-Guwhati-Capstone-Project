@@ -187,7 +187,7 @@ import random
 import os
 import panel as pn
 
-pn.extension('ipywidgets')
+pn.extension()
 
 # 1. Setup the empty data source
 source = ColumnDataSource({
