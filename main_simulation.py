@@ -3,41 +3,28 @@ import time
 import random
 import threading
 from datetime import datetime, timedelta
-
 import numpy as np
 import pandas as pd
 import pathway as pw
-
 import bokeh.plotting
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.palettes import Category20
 import panel as pn
 
-# Check environment
-print("NumPy version:", np.__version__)
-assert np.__version__.startswith("1."), "NumPy 2.x detected — environment is broken"
+assert np.__version__.startswith("1.")
 
-# Import Models and Utilities
 from models.model1_1_baseline import baseline_price
 from models.model1_2_demand import demand_based_price
 from models.model_3_competitive import competitive_price
-
 from utils.helpers import preprocess_data, create_lot_info
 from utils.geospatial import calculate_distances, get_nearby_lots
-
 from config import *
 
-# Preprocessing Logic
 def preprocess_data(df):
-    """
-    Preprocess raw data for simulation
-    """
-    # Combine date and time
     df['Timestamp'] = pd.to_datetime(
         df['LastUpdatedDate'] + ' ' + df['LastUpdatedTime'],
         format="%d-%m-%Y %H:%M:%S" 
     )
-
     column_mapping = {
         'Occupancy': 'Occupancy',
         'Capacity': 'Capacity',
@@ -50,20 +37,13 @@ def preprocess_data(df):
         'ParkingLotID': 'ParkingLotID'
     }
     df = df.rename(columns=column_mapping)
-
-    # Fill missing values
     df['QueueLength'] = df['QueueLength'].fillna(0)  
     df['Traffic'] = df['Traffic'].fillna(1.0)
     df['IsSpecialDay'] = df['IsSpecialDay'].fillna(0).astype(bool)
     df['VehicleType'] = df['VehicleType'].fillna('car')
-
-    # Add vehicle weight
     df['VehicleWeight'] = df['VehicleType'].map(VEHICLE_WEIGHTS).fillna(1.0)
-
-    # Sort by timestamp
     return df.sort_values('Timestamp').reset_index(drop=True)
 
-# Pathway Schema and Data Stream
 class ParkingSchema(pw.Schema):
     Timestamp: str
     ParkingLotID: str
@@ -87,18 +67,15 @@ data = data.with_columns(
     lot_id=data.ParkingLotID
 )
 
-# Stateful Pricing Logic
 class PricingState(pw.Schema):
     lot_id: str
     last_price: float
     model: int
 
 def update_prices(state, row):
-    # Initialize state
     last_price = state.last_price if state.last_price is not None else BASE_PRICE
-    model = state.model if state.model is not None else 2  # demand-based default
+    model = state.model if state.model is not None else 2
 
-    # Pricing logic
     if model == 1:
         price = baseline_price(
             last_price,
@@ -137,30 +114,27 @@ def update_prices(state, row):
         "model": model,
     }
 
-# Panel Dashboard Setup
-pn.extension() # Removed ipywidgets to fix Render crash
+pn.extension()
 
-# 1. Setup the empty data source
+initial_time = pd.Timestamp.now()
 source = ColumnDataSource({
-    "t": [],
-    "price": [],
-    "lot": [],
-    "occupancy": [],
-    "capacity": [],
+    "t": [initial_time],
+    "price": [30.0],
+    "lot": ["Lot A"],
+    "occupancy": [75],
+    "capacity": [100]
 })
 
-# 2. Setup the plot
 plot = bokeh.plotting.figure(
     height=400,
     width=800,
+    sizing_mode="stretch_width",
     x_axis_type="datetime",
     title="Real-Time Parking Price"
 )
 
-# Draw the line
-plot.line("t", "price", source=source, line_width=2)
+plot.line("t", "price", source=source, line_width=2, color="blue")
 
-# Add hover tools
 plot.add_tools(HoverTool(
     tooltips=[
         ("Lot", "@lot"),
@@ -169,7 +143,6 @@ plot.add_tools(HoverTool(
     ]
 ))
 
-# 3. Create an update function to stream new data
 def update_data():
     new_data = {
         "t": [pd.Timestamp.now()],
@@ -180,14 +153,16 @@ def update_data():
     }
     source.stream(new_data, rollover=100)
 
-# 4. Trigger the update function every 1000 milliseconds (1 second)
-callback = pn.state.add_periodic_callback(update_data, period=1000)
+pn.state.add_periodic_callback(update_data, period=1000)
 
-# 5. Display the dashboard (Servable for Panel CLI)
-dashboard = pn.Column(plot)
+dashboard = pn.Column(
+    pn.pane.Markdown("## IIT Guwahati Capstone: Dynamic Pricing Simulation"),
+    plot,
+    sizing_mode="stretch_both",
+    margin=(20, 20)
+)
 dashboard.servable()
 
-# 6. Start the Pathway Data Stream Safely
 if not pn.state.cache.get('pathway_started', False):
     def run_pipeline():
         pw.run(monitoring_level=pw.MonitoringLevel.NONE)
