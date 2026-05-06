@@ -155,13 +155,14 @@ def update_data():
 
 pn.state.add_periodic_callback(update_data, period=1000)
 
-dashboard = pn.Column(
-    pn.pane.Markdown("## IIT Guwahati Capstone: Dynamic Pricing Simulation"),
-    plot,
-    sizing_mode="stretch_both",
-    margin=(20, 20)
+# 5. Display the dashboard using a Production Template
+template = pn.template.FastListTemplate(
+    title="IIT Guwahati Capstone: Dynamic Pricing Simulation",
+    main=[plot],
+    accent_base_color="#0072B5", # Gives it a nice professional blue header
+    header_background="#0072B5"
 )
-dashboard.servable()
+template.servable()
 
 if not pn.state.cache.get('pathway_started', False):
     def run_pipeline():
