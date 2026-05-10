@@ -1,6 +1,6 @@
+numpy==1.26.4
+pandas==2.2.2
+bokeh==3.4.1
+panel==1.4.4
 pathway
-bokeh
-panel
-pandas
-numpy<2.0
 scikit-learn
