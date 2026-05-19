@@ -1,63 +1,31 @@
 import pandas as pd
-import numpy as np
-from config import VEHICLE_WEIGHTS
 
-def preprocess_data(df):
-    """
-    Preprocess raw data for simulation
-    
-    Args:
-        df (pd.DataFrame): Raw input data
-        
-    Returns:
-        pd.DataFrame: Processed data
-    """
-    # Combine date and time
-    df['Timestamp'] = pd.to_datetime(
-        df['LastUpdatedDate'] + ' ' + df['LastUpdatedTime'],
-        format='%d-%m-%Y %H:%M:%S'
-    )
-    
-    # Rename columns
-    column_mapping = {
-        'Occupancy': 'Occupancy',
-        'Capacity': 'Capacity',
-        'QueueLength': 'QueueLength',
-        'Traffic': 'Traffic',
-        'IsSpecialDay': 'IsSpecialDay',
-        'VehicleType': 'VehicleType',
-        'Latitude': 'Latitude',
-        'Longitude': 'Longitude',
-        'ParkingLotID': 'ParkingLotID'
-    }
-    df = df.rename(columns=column_mapping)
-    
-    # Fill missing values
-    df['QueueLength'] = df['QueueLength'].fillna(0)
-    df['Traffic'] = df['Traffic'].fillna(1.0)
-    df['IsSpecialDay'] = df['IsSpecialDay'].fillna(0).astype(bool)
-    df['VehicleType'] = df['VehicleType'].fillna('car')
-    
-    # Add vehicle weight
-    df['VehicleWeight'] = df['VehicleType'].map(VEHICLE_WEIGHTS).fillna(1.0)
-    
-    # Sort by timestamp
-    return df.sort_values('Timestamp').reset_index(drop=True)
 
-def create_lot_info(df):
-    """
-    Create a dictionary of lot information
-    
-    Args:
-        df (pd.DataFrame): Processed data
-        
-    Returns:
-        dict: Lot information dictionary
-    """
+def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean and type-cast the raw parking dataframe."""
+    df = df.copy()
+
+    # Ensure correct types
+    df["Occupancy"] = pd.to_numeric(df["Occupancy"], errors="coerce").fillna(0).astype(int)
+    df["Capacity"] = pd.to_numeric(df["Capacity"], errors="coerce").fillna(100).astype(int)
+    df["QueueLength"] = pd.to_numeric(df["QueueLength"], errors="coerce").fillna(0).astype(int)
+    df["Traffic"] = pd.to_numeric(df["Traffic"], errors="coerce").fillna(0.0).astype(float)
+    df["IsSpecialDay"] = df["IsSpecialDay"].astype(bool)
+    df["VehicleWeight"] = pd.to_numeric(df["VehicleWeight"], errors="coerce").fillna(1.0).astype(float)
+    df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce").fillna(26.1)
+    df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce").fillna(91.7)
+
+    return df
+
+
+def create_lot_info(df: pd.DataFrame) -> dict:
+    """Return a dict of lot_id -> {lat, lon, capacity} from unique lots."""
     lot_info = {}
-    for lot_id, group in df.groupby('ParkingLotID'):
-        lot_info[lot_id] = {
-            'latitude': group['Latitude'].iloc[0],
-            'longitude': group['Longitude'].iloc[0]
+    unique = df[["ParkingLotID", "Latitude", "Longitude", "Capacity"]].drop_duplicates("ParkingLotID")
+    for _, row in unique.iterrows():
+        lot_info[row["ParkingLotID"]] = {
+            "lat": row["Latitude"],
+            "lon": row["Longitude"],
+            "capacity": row["Capacity"],
         }
     return lot_info
