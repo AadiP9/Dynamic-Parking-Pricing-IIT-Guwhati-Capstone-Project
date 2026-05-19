@@ -1,44 +1,33 @@
-def competitive_price(parking_lot_id, current_price, occupancy, capacity, competitor_prices):
+from config import BASE_PRICE, MIN_PRICE, MAX_PRICE
+
+
+def competitive_price(
+    lot_id: str,
+    last_price: float,
+    occupancy: int,
+    capacity: int,
+    competitor_prices: list,
+) -> float:
     """
-    Competitive pricing model that considers nearby parking lots
-    
-    Args:
-        parking_lot_id (str): ID of the parking lot
-        current_price (float): Current price
-        occupancy (int): Current occupancy
-        capacity (int): Total capacity
-        competitor_prices (list): List of competitor prices
-        
-    Returns:
-        float: New price
+    Model 3 — Competitive pricing.
+    Adjusts price relative to nearby competitor average and own occupancy.
     """
-    from config import MIN_PRICE, MAX_PRICE
-    
-    utilization = occupancy / max(1, capacity)
-    
-    if not competitor_prices:
-        return current_price
-    
-    # Calculate competitor metrics
-    avg_competitor_price = sum(competitor_prices) / len(competitor_prices)
-    min_competitor_price = min(competitor_prices)
-    max_competitor_price = max(competitor_prices)
-    
-    # Pricing strategy based on utilization and competition
-    if utilization >= 0.95:  # Nearly full
-        # Lower price if competitors are cheaper
-        if current_price > min_competitor_price:
-            return max(MIN_PRICE, min_competitor_price * 0.95)
-    
-    elif utilization <= 0.5:  # Underutilized
-        # Increase price if competitors are charging more
-        if current_price < max_competitor_price:
-            return min(MAX_PRICE, max_competitor_price * 1.05)
-    
-    # Maintain competitive positioning
-    if current_price > avg_competitor_price * 1.1:
-        return max(MIN_PRICE, avg_competitor_price * 0.95)
-    elif current_price < avg_competitor_price * 0.9:
-        return min(MAX_PRICE, avg_competitor_price * 1.05)
-    
-    return current_price
+    if capacity == 0:
+        return last_price
+
+    occupancy_ratio = occupancy / capacity
+
+    if competitor_prices:
+        avg_competitor = sum(competitor_prices) / len(competitor_prices)
+    else:
+        avg_competitor = BASE_PRICE
+
+    # If we're busier than half capacity, price toward competitor avg or above
+    if occupancy_ratio > 0.5:
+        target = avg_competitor * (1 + 0.1 * (occupancy_ratio - 0.5))
+    else:
+        target = avg_competitor * (1 - 0.1 * (0.5 - occupancy_ratio))
+
+    # Smooth transition: move 20% toward target each tick
+    new_price = last_price + 0.2 * (target - last_price)
+    return float(max(MIN_PRICE, min(MAX_PRICE, new_price)))
