@@ -1,4 +1,5 @@
 # Configuration parameters
+
 BASE_PRICE = 10.0
 MIN_PRICE = 5.0
 MAX_PRICE = 20.0
