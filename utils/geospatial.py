@@ -1,49 +1,51 @@
+import math
 import numpy as np
-from sklearn.neighbors import BallTree
+import pandas as pd
+from config import EARTH_RADIUS_KM, NEARBY_LOTS_K
 
-def calculate_distances(lots_data):
-    """
-    Precompute distances between all parking lots
-    
-    Args:
-        lots_data (pd.DataFrame): Parking lot data with columns:
-            ['ParkingLotID', 'Latitude', 'Longitude']
-            
-    Returns:
-        tuple: (indices, distances) arrays
-    """
-    # Convert to radians for haversine metric
-    coordinates = np.radians(lots_data[['Latitude', 'Longitude']].values)
-    tree = BallTree(coordinates, metric='haversine')
-    return tree.query(coordinates, return_distance=True)
 
-def get_nearby_lots(parking_lot_id, lot_info, distances, indices, max_distance_km):
+def haversine(lat1, lon1, lat2, lon2):
+    """Return distance in km between two lat/lon points."""
+    r = EARTH_RADIUS_KM
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def calculate_distances(lots_df: pd.DataFrame):
     """
-    Get nearby parking lots within a given distance
-    
-    Args:
-        parking_lot_id (str): ID of the target parking lot
-        lot_info (dict): Dictionary of lot information
-        distances (np.array): Distance matrix
-        indices (np.array): Indices matrix
-        max_distance_km (float): Maximum distance in km
-        
-    Returns:
-        list: Nearby parking lot IDs
+    Given a DataFrame with columns [ParkingLotID, Latitude, Longitude],
+    return (indices_array, distances_matrix) where distances_matrix[i][j]
+    is the km distance between lot i and lot j.
     """
-    # Convert max distance to radians (haversine uses radians)
-    max_distance_rad = max_distance_km / 6371.0
-    
-    # Find the lot index
-    lot_ids = list(lot_info.keys())
-    if parking_lot_id not in lot_ids:
+    n = len(lots_df)
+    indices = lots_df["ParkingLotID"].tolist()
+    distances = np.zeros((n, n))
+
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                distances[i][j] = haversine(
+                    lots_df.iloc[i]["Latitude"],
+                    lots_df.iloc[i]["Longitude"],
+                    lots_df.iloc[j]["Latitude"],
+                    lots_df.iloc[j]["Longitude"],
+                )
+    return indices, distances
+
+
+def get_nearby_lots(lot_id, lot_info: dict, distances, indices, max_distance_km: float):
+    """
+    Return a list of lot_ids that are within max_distance_km of the given lot_id.
+    """
+    if lot_id not in indices:
         return []
-    
-    idx = lot_ids.index(parking_lot_id)
-    
-    # Find nearby lots within max distance
-    mask = distances[idx] <= max_distance_rad
-    nearby_indices = indices[idx][mask]
-    
-    # Exclude self and return IDs
-    return [lot_ids[i] for i in nearby_indices if lot_ids[i] != parking_lot_id]
+
+    i = indices.index(lot_id)
+    nearby = []
+    for j, other_id in enumerate(indices):
+        if other_id != lot_id and distances[i][j] <= max_distance_km:
+            nearby.append(other_id)
+    return nearby[:NEARBY_LOTS_K]
